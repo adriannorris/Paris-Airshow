@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paris Airshow Exhibitors</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 20px;
+  }
+
+  input, select, button, textarea {
+    margin: 5px;
+  }
+
+  input[type="text"], input[type="url"] {
+    width: 250px;
+  }
+
+textarea {
+  width: 500px;
+  height: 20px; /* Make it the same height as inputs */
+  padding: 2px 2px;
+  font-size: 14px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+  .controls {
+    margin-top: 20px;
+  }
+
+  .edit-btn, .delete-btn {
+    margin-left: 5px;
+  }
+
+table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: auto;
+  max-width: 100%;
+}
+
+  th, td {
+    border: 1px solid #ccc;
+    padding: 6px 6px;
+    text-align: middle !important;
+    vertical-align: middle;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+
+td:nth-child(3), td:nth-child(5) {
+  text-align: center;
+}
+
+th:nth-child(3), th:nth-child(5) {
+  text-align: center;
+}
+
+  td.wrap {
+    white-space: normal;
+  }
+
+  th {
+    background-color: #f0f0f0;
+    cursor: pointer;
+  }
+
+  th.sorted-asc::after {
+    content: ' ▲';
+  }
+
+  th.sorted-desc::after {
+    content: ' ▼';
+  }
+
+  /* Fixed column widths by column position */
+  th:nth-child(1), td:nth-child(1) { width: 200px; } /* Category */
+  th:nth-child(2), td:nth-child(2) { width: 200px; } /* Location */
+  th:nth-child(3), td:nth-child(3) { width: 120px; } /* Date Added */
+  th:nth-child(4), td:nth-child(4) { width: 350px; } /* Exhibitor Name */
+  th:nth-child(5), td:nth-child(5) { width: 150px; }  /* Link */
+  th:nth-child(6), td:nth-child(6) { width: 400px; } /* Notes */
+  th:nth-child(7), td:nth-child(7) { width: 100px; } /* Actions */
+
+tbody tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+tbody tr:hover {
+  background-color: #e0f7fa; !important;
+}
+
+</style>
+
+</head>
+<body>
+
+<div id="lockScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;">
+  <h2>🔐 Enter PIN to Access Links</h2>
+  <input type="password" id="pinInput" maxlength="4" placeholder="Enter 4-digit PIN" style="font-size:1.2em;padding:5px;">
+  <button onclick="checkPin()">Unlock</button>
+  <p id="pinError" style="color:red;"></p>
+</div>
+
+  <h1>Paris Airshow - My Exhibitors</h1>
+
+<button onclick="lockPage()">🔒 Lock</button>
+
+<button id="togglePrivateBtn" onclick="togglePrivate()">🔓 Show Private</button>
+
+  <form id="linkForm">
+    <input type="url" id="url" placeholder="URL" required>
+    <input type="text" id="desc" placeholder="Exhibitor Name" maxlength="50" required>
+    <input type="text" id="category" placeholder="Category" maxlength="20">
+    <input type="text" id="subCategory" placeholder="Location" maxlength="30">
+  <select id="status">
+    <option value="">-- Status --</option>
+    <option value="Visited">Visited</option>
+    <option value="Return">Return</option>
+  </select>
+    <textarea id="notes" placeholder="Notes (optional)"></textarea><br>
+    <button type="submit">Add Exhibitor</button>
+  </form>
+
+<div class="controls">
+  <input type="text" id="searchBox" placeholder="Search..." oninput="renderLinks()">
+  <button onclick="clearSearch()">Clear Search</button>
+  <select id="filterCategory" onchange="renderLinks()">
+    <option value="">All Categories</option>
+  </select>
+  <select id="filterSubCategory" onchange="renderLinks()">
+    <option value="">All Locations</option>
+  </select>
+  <select id="filterStatus" onchange="renderLinks()">
+    <option value="">All Statuses</option>
+    <option value="Visited">Visited</option>
+    <option value="Return">Return</option>
+  </select>
+
+</div>
+
+  <table id="linksTable">
+    <thead>
+      <tr>
+        <th onclick="sortBy('category')">Category</th>
+        <th onclick="sortBy('subCategory')">Location</th>
+                    <th onclick="sortBy('status')">Status</th>
+        <th onclick="sortBy('desc')">Exhibitor Name</th>
+        <th>Link</th>
+        <th>Notes</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="controls">
+    <button onclick="exportLinks()">Export Exhibitors</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importLinks(this)">
+    <button onclick="document.getElementById('importFile').click()">Import Exhibitors</button>
+  </div>
+
+  <script>
+
+let showPrivate = false;
+const PIN = "1339"; // Set your PIN here
+
+    const form = document.getElementById('linkForm');
+    const tableBody = document.querySelector('#linksTable tbody');
+    const filterCategory = document.getElementById('filterCategory');
+    const searchBox = document.getElementById('searchBox');
+    const tableHeaders = document.querySelectorAll('th');
+    
+
+    let links = JSON.parse(localStorage.getItem('myLinks') || '[]');
+    let needsUpdate = false;
+    links.forEach(link => {
+      if (!link.date) { link.date = Date.now(); needsUpdate = true; }
+      if (!link.notes) { link.notes = ''; needsUpdate = true; }
+             if (!link.status) { link.status = ''; needsUpdate = true; }
+    });
+    if (needsUpdate) localStorage.setItem('myLinks', JSON.stringify(links));
+
+    let currentSort = { key: 'desc', direction: 'asc' };
+
+function togglePrivate() {
+  if (!showPrivate) {
+    const pin = prompt("Enter PIN to show private links:");
+    if (pin === PIN) {
+      showPrivate = true;
+    } else {
+      alert("Incorrect PIN. Private links will remain hidden.");
+      return;
+    }
+  } else {
+    showPrivate = false;
+  }
+
+  const btn = document.getElementById("togglePrivateBtn");
+  btn.textContent = showPrivate ? "🙈 Hide Private" : "🔓 Show Private";
+  renderLinks();
+}
+
+
+    function formatDate(timestamp) {
+      return new Date(timestamp).toLocaleDateString('en-GB');
+    }
+
+    function populateFilters() {
+      const categories = [...new Set(links.map(l => l.category).filter(Boolean))];
+      filterCategory.innerHTML = `<option value="">All Categories</option>`;
+      categories.forEach(cat => {
+        filterCategory.innerHTML += `<option value="${cat}">${cat}</option>`;
+      });
+
+      const subCategories = [...new Set(links.map(l => l.subCategory).filter(Boolean))];
+      const filterSubCategory = document.getElementById('filterSubCategory');
+      filterSubCategory.innerHTML = `<option value="">All Locations</option>`;
+      subCategories.forEach(sub => {
+        filterSubCategory.innerHTML += `<option value="${sub}">${sub}</option>`;
+      });
+    }
+
+    function sortBy(key) {
+      if (currentSort.key === key) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSort.key = key;
+        currentSort.direction = 'asc';
+      }
+      renderLinks();
+    }
+
+    function renderLinks() {
+      const selectedCategory = filterCategory.value;
+      const selectedSubCategory = document.getElementById('filterSubCategory')?.value || "";
+      const keyword = searchBox.value.toLowerCase();
+const selectedStatus = document.getElementById('filterStatus')?.value || "";
+
+
+let filteredLinks = links.filter(link => {
+  const isPrivate = (link.category?.toLowerCase() === "private");
+
+  return (
+    (showPrivate || !isPrivate) && // show if toggled on, else hide<th, td {
+    (!selectedCategory || link.category === selectedCategory) &&
+    (!selectedSubCategory || link.subCategory === selectedSubCategory) &&
+    (!selectedStatus ||
+      (selectedStatus === 'Unvisited' && !link.status) ||
+      (selectedStatus !== 'Unvisited' && link.status === selectedStatus)) &&
+    (!keyword || [link.category, link.subCategory, link.desc, link.notes].some(
+      field => field && field.toLowerCase().includes(keyword)
+    ))
+  );
+});
+
+
+      const key = currentSort.key;
+      const direction = currentSort.direction;
+
+      filteredLinks.sort((a, b) => {
+        const getVal = obj => (obj[key] || '').toString().toLowerCase();
+        if (key === 'date') {
+          return direction === 'asc' ? a.date - b.date : b.date - a.date;
+        } else {
+          return direction === 'asc'
+            ? getVal(a).localeCompare(getVal(b))
+            : getVal(b).localeCompare(getVal(a));
+        }
+      });
+
+      tableHeaders.forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.textContent.replace(/[\\s▲▼]/g, '').toLowerCase() === key.toLowerCase()) {
+          th.classList.add(direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        }
+      });
+
+      tableBody.innerHTML = '';
+      filteredLinks.forEach((link) => {
+        const trueIndex = links.findIndex(l =>
+          l.url === link.url &&
+          l.desc === link.desc &&
+          l.category === link.category &&
+          l.subCategory === link.subCategory &&
+          l.date === link.date
+        );
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td onclick="startInlineEdit(this, ${trueIndex}, 'category', 20)">
+            ${link.category?.slice(0, 20) || ''}
+          </td>
+          <td onclick="startInlineEdit(this, ${trueIndex}, 'subCategory', 30)">
+            ${link.subCategory?.slice(0, 30) || ''}
+          <td>
+  <select onchange="updateStatus(${trueIndex}, this.value)">
+    <option value="" ${link.status === '' ? 'selected' : ''}>--</option>
+    <option value="Visited" ${link.status === 'Visited' ? 'selected' : ''}>Visited</option>
+    <option value="Return" ${link.status === 'Return' ? 'selected' : ''}>Return</option>
+    <option value="Unvisited">Unvisited</option>
+  </select>
+</td>
+          <td class="wrap" onclick="startInlineEdit(this, ${trueIndex}, 'desc', 50)">
+            ${link.desc?.slice(0, 50) || ''}
+          </td>
+<td>
+  <img src="https://www.google.com/s2/favicons?sz=32&domain=${(() => {
+    try { return new URL(link.url).hostname; } catch { return ""; }
+  })()}"
+       alt="" style="vertical-align:middle;margin-right:6px;width:20px;height:20px;">
+  <a href="${link.url}" target="_blank">Visit</a>
+</td>
+          <td class="wrap" onclick="startNoteEdit(this, ${trueIndex})">
+            ${link.notes ? link.notes.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') : ''}
+          </td>
+
+          <td>
+            <button class="delete-btn" onclick="deleteLink(${trueIndex})">Delete</button>
+          </td>
+        `;
+        tableBody.appendChild(row);
+      });
+}
+
+    function editLink(index) {
+      const link = links[index];
+      const newDesc = prompt("Edit exhibitor name:", link.desc);
+      const newCat = prompt("Edit category:", link.category || '');
+      const newSubCat = prompt("Edit location:", link.subCategory || '');
+      const newNotes = prompt("Edit notes:", link.notes || '');
+      if (newDesc !== null) {
+        links[index].desc = newDesc.slice(0, 50);
+        links[index].category = newCat.slice(0, 20);
+        links[index].subCategory = newSubCat.slice(0, 30);
+        links[index].notes = newNotes;
+        localStorage.setItem('myLinks', JSON.stringify(links));
+        populateFilters();
+        renderLinks();
+      }
+    }
+
+function startNoteEdit(cell, index) {
+  const link = links[index];
+  const currentText = link.notes || '';
+  const textarea = document.createElement('textarea');
+  textarea.value = currentText;
+  textarea.style.width = '100%';
+  textarea.style.height = '60px';
+  textarea.style.boxSizing = 'border-box';
+
+  textarea.onblur = () => {
+    const newNotes = textarea.value;
+    links[index].notes = newNotes;
+    localStorage.setItem('myLinks', JSON.stringify(links));
+    renderLinks();
+  };
+
+  textarea.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      textarea.blur(); // Trigger save
+      e.preventDefault();
+    }
+  };
+
+  cell.innerHTML = '';
+  cell.appendChild(textarea);
+  textarea.focus();
+}
+
+
+function startInlineEdit(cell, index, field, maxLength) {
+  const link = links[index];
+  const currentValue = link[field] || '';
+if (field === 'status') {
+    const select = document.createElement('select');
+    ['','Visited','Return'].forEach(value => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value || '--';
+      if (value === currentValue) option.selected = true;
+      select.appendChild(option);
+    });
+
+    select.onchange = () => {
+      links[index][field] = select.value;
+      localStorage.setItem('myLinks', JSON.stringify(links));
+     setTimeout(renderLinks, 100); // slight delay allows mouseup to finish
+    };
+
+    cell.innerHTML = '';
+    cell.appendChild(select);
+    select.focus();
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentValue;
+  input.maxLength = maxLength;
+  input.style.width = '100%';
+  input.style.boxSizing = 'border-box';
+
+  input.onblur = () => {
+    const newValue = input.value.slice(0, maxLength);
+    links[index][field] = newValue;
+    localStorage.setItem('myLinks', JSON.stringify(links));
+    populateFilters();
+    renderLinks();
+  };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      input.blur(); // Save changes
+      e.preventDefault();
+    }
+  };
+
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus();
+}
+
+
+function editNote(index) {
+  const link = links[index];
+  const newNotes = prompt("Edit notes:", link.notes || '');
+  if (newNotes !== null) {
+    links[index].notes = newNotes;
+    localStorage.setItem('myLinks', JSON.stringify(links));
+    renderLinks();
+  }
+}
+
+function updateStatus(index, value) {
+  links[index].status = value;
+  localStorage.setItem('myLinks', JSON.stringify(links));
+  renderLinks();
+}
+
+
+
+function clearSearch() {
+  document.getElementById('searchBox').value = '';
+  renderLinks();
+}
+
+    function deleteLink(index) {
+      if (confirm("Delete this link?")) {
+        links.splice(index, 1);
+        localStorage.setItem('myLinks', JSON.stringify(links));
+        populateFilters();
+        renderLinks();
+      }
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const url = document.getElementById('url').value;
+      const desc = document.getElementById('desc').value.slice(0, 50);
+      const category = document.getElementById('category').value.slice(0, 20);
+      const subCategory = document.getElementById('subCategory').value.slice(0, 30);
+      const notes = document.getElementById('notes').value;
+              const status = document.getElementById('status').value;
+      links.push({ url, desc, category, subCategory, notes, date: Date.now(), status });
+      localStorage.setItem('myLinks', JSON.stringify(links));
+      form.reset();
+      populateFilters();
+      renderLinks();
+    });
+
+    function exportLinks() {
+      const blob = new Blob([JSON.stringify(links, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'my_exhibitors_backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+
+    function importLinks(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          let added = 0;
+
+          imported.forEach(link => {
+            if (link.url && link.desc) {
+              const exists = links.some(l => l.url === link.url && l.desc === link.desc);
+              if (!exists) {
+                links.push({
+                  url: link.url,
+                  desc: link.desc.slice(0, 50),
+                  category: (link.category || '').slice(0, 20),
+                  subCategory: (link.subCategory || '').slice(0, 30),
+                  notes: link.notes || '',
+                  date: link.date || Date.now()
+                });
+                added++;
+              }
+            }
+          });
+
+          if (added > 0) {
+            localStorage.setItem('myLinks', JSON.stringify(links));
+            alert(`Imported ${added} new link(s).`);
+            populateFilters();
+            renderLinks();
+          } else {
+            alert('No new links were imported.');
+          }
+        } catch (err) {
+          alert('Failed to import: Invalid file format.');
+        }
+      };
+
+      reader.readAsText(file);
+      input.value = '';
+    }
+
+    populateFilters();
+    renderLinks();
+
+
+function checkPin() {
+  const input = document.getElementById("pinInput").value;
+  if (input === PIN) {
+    document.getElementById("lockScreen").style.display = "none";
+    renderLinks(); // Show links after unlocking
+  } else {
+    document.getElementById("pinError").textContent = "Incorrect PIN";
+  }
+}
+
+function lockPage() {
+  document.getElementById("lockScreen").style.display = "flex";
+  document.getElementById("pinInput").value = "";
+  document.getElementById("pinError").textContent = "";
+  document.getElementById("pinInput").focus();
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const pinInput = document.getElementById("pinInput");
+  document.getElementById("lockScreen").style.display = "flex";
+  pinInput.focus();
+
+  pinInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      checkPin();
+    }
+  });
+});
+
+
+  </script>
+
+</body>
+</html>
+
