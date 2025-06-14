@@ -112,7 +112,7 @@ tbody tr:hover {
 <button id="togglePrivateBtn" onclick="togglePrivate()">🔓 Show Private</button>
 
   <form id="linkForm">
-    <input type="url" id="url" placeholder="URL" required>
+    <input type="url" id="url" placeholder="Website" (optional)>
     <input type="text" id="desc" placeholder="Exhibitor Name" maxlength="50" required>
     <input type="text" id="category" placeholder="Category" maxlength="20">
     <input type="text" id="subCategory" placeholder="Location" maxlength="30">
@@ -307,13 +307,17 @@ let filteredLinks = links.filter(link => {
           <td class="wrap" onclick="startInlineEdit(this, ${trueIndex}, 'desc', 50)">
             ${link.desc?.slice(0, 50) || ''}
           </td>
+
 <td>
-  <img src="https://www.google.com/s2/favicons?sz=32&domain=${(() => {
-    try { return new URL(link.url).hostname; } catch { return ""; }
-  })()}"
-       alt="" style="vertical-align:middle;margin-right:6px;width:20px;height:20px;">
-  <a href="${link.url}" target="_blank">Visit</a>
+  ${
+    link.url 
+      ? `<img src="https://www.google.com/s2/favicons?sz=32&domain=${(() => { try { return new URL(link.url).hostname; } catch { return ""; } })()}" alt="" style="vertical-align:middle;margin-right:6px;width:20px;height:20px;">
+         <a href="${link.url}" target="_blank">Visit</a>`
+      : `<span style="color:#888;">No link</span>`
+  }
 </td>
+
+
           <td class="wrap" onclick="startNoteEdit(this, ${trueIndex})">
             ${link.notes ? link.notes.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>') : ''}
           </td>
