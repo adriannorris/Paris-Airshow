@@ -80,10 +80,10 @@ th:nth-child(3), th:nth-child(5) {
   th:nth-child(1), td:nth-child(1) { width: 200px; } /* Category */
   th:nth-child(2), td:nth-child(2) { width: 200px; } /* Location */
   th:nth-child(3), td:nth-child(3) { width: 120px; } /* Date Added */
-  th:nth-child(4), td:nth-child(4) { width: 350px; } /* Exhibitor Name */
+  th:nth-child(4), td:nth-child(4) { width: 300px; } /* Exhibitor Name */
   th:nth-child(5), td:nth-child(5) { width: 150px; }  /* Link */
   th:nth-child(6), td:nth-child(6) { width: 400px; } /* Notes */
-  th:nth-child(7), td:nth-child(7) { width: 100px; } /* Actions */
+  th:nth-child(7), td:nth-child(7) { width: 150px; } /* Actions */
 
 tbody tr:nth-child(even) {
   background-color: #fafafa;
@@ -324,6 +324,7 @@ let filteredLinks = links.filter(link => {
 
           <td>
             <button class="delete-btn" onclick="deleteLink(${trueIndex})">Delete</button>
+            <button class="edit-btn" onclick="editLinkUrl(${trueIndex})">Link</button>
           </td>
         `;
         tableBody.appendChild(row);
@@ -347,6 +348,38 @@ let filteredLinks = links.filter(link => {
       }
     }
 
+function editLinkUrl(index) {
+  const currentUrl = links[index].url || '';
+  const newUrl = prompt("Enter or update the website URL:", currentUrl);
+
+  if (newUrl === null) {
+    // User cancelled
+    return;
+  }
+
+  if (newUrl.trim() === "") {
+    // Allow blank (removes the link)
+    links[index].url = "";
+  } else if (isValidUrl(newUrl.trim())) {
+    links[index].url = newUrl.trim();
+  } else {
+    alert("Invalid URL format. Please enter a valid website address starting with http:// or https://");
+    return;
+  }
+
+  localStorage.setItem('myLinks', JSON.stringify(links));
+  renderLinks();
+}
+
+function isValidUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    return (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:");
+  } catch (_) {
+    return false;
+  }
+}
+    
 function startNoteEdit(cell, index) {
   const link = links[index];
   const currentText = link.notes || '';
